@@ -322,7 +322,7 @@ int process_program_options(const int argc, const char *const argv[],std::vector
       if (! vm.count("filename"))  {
         std::cout << desc << '\n';
         std::cout << "\n filename IS REQUIRED! " <<  '\n';
-        exit(1);
+        exit(1); 
       }
 
 
