@@ -60,7 +60,7 @@ LIBS = -lm -lboost_system -lboost_date_time -lboost_thread -lboost_iostreams -lb
 # directory information to be passed to the linker.
 #
 
-CXXSOURCES = avail.cpp       # list of source files
+CXXSOURCES = avail.cpp util.cpp     # list of source files
 CXXOBJECTS = $(CXXSOURCES:.cpp=.o)  # expands to list of object files
 CXXFLAGS = -DESRI_UNIX -g $(INCLUDEDIRS)
 #CXX = g++ -std=c++11

@@ -1,108 +1,27 @@
 
 #include <boost/algorithm/string.hpp>
 #include <boost/program_options.hpp>
+
+#include "boost/date_time/local_time/local_time.hpp"
+
 #include <boost/iostreams/device/mapped_file.hpp> // for mmap
 #include <algorithm>  // for std::find
 #include <iostream>   // for std::cout
 #include <cstring>
 #include <chrono>
+#include <string>
 
 
-
+#include "util.hpp"
 
 using namespace boost::program_options;
-
-// -------------------------------------------------------------
-
-
-void *mymemrchr(const void *s, int c, size_t n)
-{
-    if (n > 0) {
-        const char*  p = (const char*) s;
-        const char*  q = p + n;
-
-        while (1) {
-            q--; if (q < p || q[0] == c) break;
-            q--; if (q < p || q[0] == c) break;
-            q--; if (q < p || q[0] == c) break;
-            q--; if (q < p || q[0] == c) break;
-        }
-        if (q >= p)
-            return (void*)q;
-    }
-    return NULL;
-}
-
-// -------------------------------------------------------------
+using namespace boost::posix_time;
 
 
-void printVersions() {
 
-    std::cout << "C++ Version:  " ;
 
-    if (__cplusplus == 201703L) std::cout << "C++17\n";
-    else if (__cplusplus == 201402L) std::cout << "C++14\n";
-    else if (__cplusplus == 201103L) std::cout << "C++11\n";
-    else if (__cplusplus == 199711L) std::cout << "C++98\n";
-    else std::cout << "pre-standard C++\n";
 
-    std::cout << "Compile time: "  << __DATE__ << std::endl;
-}
 
-// -------------------------------------------------------------
-
-bool  myStrToTime(const std::string& timeStr, std::time_t& t )  {
-  int year=0, month=1, day=1, hour=0, min=0;
-  struct tm stm;
-
-  if (year < 0 || month < 1 || month > 12 || day < 1 || day > 31 || hour < 0 || hour > 23 || min < 0 || min > 59) {
-    std::cout << "ERROR: bad date-time format: " << timeStr << std::endl;
-    return false;
-  }
-
-  std::sscanf(timeStr.c_str(), "%04d%02d%02d%02d%02d", &year, &month, &day, &hour, &min);
-
-  stm.tm_year = year - 1900;
-  stm.tm_mon = month - 1;
-  stm.tm_mday = day;
-  stm.tm_hour = hour;
-  stm.tm_min = min;
-  stm.tm_sec = 0;
-  stm.tm_isdst = -1;
-
- t = mktime(&stm);
- std::cout << "String : " << timeStr << " Converted to time_t: " << t << std::endl;
- return true;
-}
-
-// -------------------------------------------------------------
-
-void on_age(int age)
-{
-  std::cout << "On age: " << age << '\n';
-}
-
-// -------------------------------------------------------------
-
-// check if file exists AND it can be opened for reading
-
-bool DoesFileExist (const std::string& name) {
-
-  bool isOK = false;
-
-  try {
-    if (FILE *file = fopen(name.c_str(), "r")) {
-      fclose(file);
-      isOK = true;
-      }
-    }
-  catch( const std::exception& e ) {
-    std::cout << "\n ERRPR: Unable to open the file: " << name << '\n' ;
-    std::cerr << e.what() << '\n' ;
-    isOK = false;
-    }
-  return isOK;
-}
 
 // -------------------------------------------------------------
 
@@ -130,6 +49,7 @@ class bwFile {
     
 
     bool setLimits();
+    bool processFile(const std::string& dateTime, char &p);
 
 
 };
@@ -160,6 +80,16 @@ bool bwFile::setLimits() {
 }
 
 // -------------------------------------------------------------
+
+bool processFile(const std::string& dateTime, char &p) {
+
+
+    return true;
+
+}
+
+// -------------------------------------------------------------
+
 
 bool bwFile::processFile(std::string& fileName, const std::string& ini, const std::string& fin) {
 
@@ -290,7 +220,21 @@ bool bwFile::processFile(std::string& fileName, const std::string& ini, const st
 
 int process_program_options(const int argc, const char *const argv[],std::vector<std::string>& fileName, std::string& ini, std::string& fin)
 {
+  
+  
   namespace po = boost::program_options; 
+
+  auto now = std::chrono::system_clock::now();
+  auto in_time_t_fin = std::chrono::system_clock::to_time_t(now);
+  auto in_time_t_ini = in_time_t_fin - 3600 * 24 * 30 * 3;
+
+  std::stringstream finTime;
+  finTime << std::put_time(std::localtime(&in_time_t_fin), "%Y%m%d");
+  std::cout <<  finTime.str() << std::endl;
+
+  std::stringstream iniTime;
+  iniTime << std::put_time(std::localtime(&in_time_t_ini), "%Y%m%d");
+  std::cout <<  iniTime.str()<< std::endl;
 
   printVersions();
   
@@ -301,8 +245,8 @@ int process_program_options(const int argc, const char *const argv[],std::vector
         ("help,h", "Help screen")
         ("pi", po::value<float>()->default_value(3.14f), "Pi")
         ("age", po::value<int>()->notifier(on_age), "Age")
-        ("ini,I", po::value<std::string> (&ini), "Start date time. e.g.:  20181201 is equvalent to December the 1st, 00:00 ")
-        ("fin,F", po::value<std::string> (&fin), "End date time. e.g.:  201812012300 is equvalent to December the 1st, 11:00 PM")
+        ("ini,I", po::value<std::string>(&ini)->default_value(iniTime.str()) , "Start date time. e.g.:  20181201 is equvalent to December the 1st, 00:00 ")
+        ("fin,F", po::value<std::string> (&fin)->default_value(finTime.str()), "End date time. e.g.:  201812012300 is equvalent to December the 1st, 11:00 PM")
         ("filename,f", po::value< std::vector<std::string> > (&fileName), "filename, can specify many!");
         
       variables_map vm;
@@ -327,7 +271,7 @@ int process_program_options(const int argc, const char *const argv[],std::vector
 
 
     }
-  catch (const error &ex)
+  catch (const error &ex) 
     {
       std::cerr << ex.what() << '\n';
       exit(1);
