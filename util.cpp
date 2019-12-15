@@ -7,14 +7,14 @@
 // -------------------------------------------------------------
 
 void on_age(int age)
-{
+{ 
   std::cout << "On age: " << age << '\n';
 }
 
 // -------------------------------------------------------------
 
 // check if file exists AND it can be opened for reading
-
+ 
 bool DoesFileExist (const std::string& name) {
 
   bool isOK = false;

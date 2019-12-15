@@ -71,7 +71,7 @@ bool bwFile::setLimits() {
 
   if ( !myStrToTime(this->ini, this->iniTimeT ) )
     return false;   
-
+ 
   if ( !myStrToTime(this->fin, this->finTimeT ) )
     return false;
 
