@@ -2,6 +2,7 @@
 #include <iostream>   // for std::cout
 #include <chrono>
 
+#include "util.hpp"
 
 
 // -------------------------------------------------------------
@@ -56,12 +57,34 @@ bool  myStrToTime(const std::string& timeStr, std::time_t& t )  {
   stm.tm_isdst = -1;
 
  t = mktime(&stm);
- std::cout << "String : " << timeStr << " Converted to time_t: " << t << std::endl;
+ //std::cout << "String : " << timeStr << " Converted to time_t: " << t << std::endl;
  return true;
 }
 
 // -------------------------------------------------------------
 
+// measure time between two consecutive calls:
+// meassureExecTime(ini);
+// code....
+// ret = meassureExecTime(fin);
+
+unsigned long long int meassureExecTime(exec_time t) {
+
+  static auto t1 = std::chrono::high_resolution_clock::now();
+
+  if (t == timeMeassureStart) {
+    t1 = std::chrono::high_resolution_clock::now();
+    return 0;
+  }
+  else { 
+    auto t2 = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>( t2 - t1 ).count();
+    std::cout << "\n Execution time in microseconds: " <<  duration << std::endl;
+    return duration;
+  }
+}
+
+// -------------------------------------------------------------
 
 void printVersions() {
 

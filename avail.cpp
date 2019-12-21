@@ -11,17 +11,36 @@
 #include <chrono>
 #include <string>
 
-
 #include "util.hpp"
 
 using namespace boost::program_options;
 using namespace boost::posix_time;
 
+std::uint16_t  _verbosity = 0U;
 
+// -------------------------------------------------------------
 
+template<typename T>
+class Attribute {
+protected:
+    T m_val;
+public:
+    T * getAddress() { return &m_val; }
+    T get() { return m_val; }
+    void set(T v) { m_val = v; }
+};
 
+// -------------------------------------------------------------
 
+// representation of a minute of BW measurment, with time, download and upload rate of that minute
 
+class minuteSample{
+
+  private:
+    Attribute<time_t>         t;
+    Attribute<std::string>    minute;
+    Attribute<long long int>  upload, download; 
+  };
 
 // -------------------------------------------------------------
 
@@ -35,7 +54,7 @@ class bwFile {
   private:
     std::string fileName;
     boost::iostreams::mapped_file mappedFile;
-    char *mappedFilePtr;
+    char *mappedFilePtr, *finalPointer;
     std::string ini, fin;
     long totalMinutes=0;  
     std::time_t iniTimeT = 0;
@@ -46,10 +65,12 @@ class bwFile {
     bool finalTimeNotInFile = false;
     std::string fileIniDateTime;
     std::string fileFinDateTime;
-    
+    char *iniPoint, *finPoint;
+    long long totalLen;
+
 
     bool setLimits();
-    bool processFile(const std::string& dateTime, char &p);
+    bool findDate(const std::string& dateTime, char *p[]);
 
 
 };
@@ -61,6 +82,7 @@ bool bwFile::setLimits() {
   int yearIni=0, monthIni=1, dayIni=1, hourIni=0, minIni=0;
   int yearFin=0, monthFin=1, dayFin=1, hourFin=0, minFin=0;
 
+  if (_verbosity > 0) {
   std::cout << "Recevied:  INI -> " << this->ini << " FIN -> " << this->fin << std::endl;
 
   std::sscanf(this->ini.c_str(), "%04d%02d%02d%02d%02d", &yearIni, &monthIni, &dayIni, &hourIni, &minIni);
@@ -68,6 +90,7 @@ bool bwFile::setLimits() {
 
   std::cout << "Searching from: " << hourIni << ":" << minIni << " " <<   dayIni << "/" << monthIni <<  "/" << yearIni ;
   std::cout << " To: " << hourFin << ":" << minFin << " " <<   dayFin << "/" << monthFin <<  "/" << yearFin <<  std::endl;
+  }
 
   if ( !myStrToTime(this->ini, this->iniTimeT ) )
     return false;   
@@ -75,41 +98,87 @@ bool bwFile::setLimits() {
   if ( !myStrToTime(this->fin, this->finTimeT ) )
     return false;
 
-
   return true;
 }
 
 // -------------------------------------------------------------
 
-bool processFile(const std::string& dateTime, char &p) {
+// simple binary search in flat file, mapped in memory
 
+bool bwFile::findDate(const std::string& dateTime, char *p[]) {
 
-    return true;
+  bool        found = false;
+  char        ftimestamp[100],fileDate[100], ftimestamp_prev[100],fileDate_prev[100];
+  long  int   chunkSize=this->mappedFile.size(), position=0;
+  int         ret=0;
+  auto        localPointer = this->mappedFilePtr + position;
+  // goto 50% 
+  chunkSize /= 2;   
+  for  (int counter=0 ; !found && std::abs( chunkSize ) > 50 && counter < 100 ; counter++)  {
+    
+    position += chunkSize;    // pointer to memory location we expect data is located
+    localPointer = this->mappedFilePtr + position;
 
+    // is pointer in range 
+    if (localPointer >= this->mappedFilePtr && localPointer <= (this->finalPointer)) {
+      // find begining of line (after NEWLINE) and scan two comma separated fields
+      auto startOfLine = static_cast< char*>(memchr(localPointer, '\n', this->finalPointer-localPointer));
+      std::sscanf(startOfLine, "%[^,],%[^,]",  ftimestamp, fileDate);
+
+      // basic binary jump back or forth (+-1/2, +-1/4, +-1/8, etc)
+      if ( (ret = std::strncmp( dateTime.c_str(), fileDate, dateTime.length())) < 0 )
+        chunkSize = -std::abs(chunkSize) / 2; 
+      else if ( ret > 0 ) 
+        chunkSize = std::abs(chunkSize) / 2;    // in case of lower
+      else {
+        found = true;
+        *p = startOfLine;
+        break;
+      }
+    }
+  }
+
+  if (!found)   { // check near match...  we iterate over several consecutive lines  
+    localPointer =  (localPointer > (this->mappedFilePtr + 300)) ? (localPointer - 300) : this->mappedFilePtr;
+
+    for  (int counter=0 ; !found && (localPointer < this->finalPointer) && counter < 10 ; counter++)  {
+
+      auto startOfLine = static_cast< char*>(memchr(localPointer, '\n', finalPointer-localPointer));
+      std::sscanf(startOfLine, "%[^,],%[^,]",  ftimestamp, fileDate);
+      
+      if (_verbosity > 2)   
+        std::cout << "LINE -> file: " << fileDate  << " Req: "  << dateTime << " Chunksize: " << chunkSize << " Position: " << position << std:: endl;
+
+      // check if exact match happened
+      if ( (std::strncmp( dateTime.c_str(), fileDate, dateTime.length())) == 0 )  {
+        found = true;
+        *p = startOfLine;
+        break;      
+      } // check if previous line is lower and next is bigger
+      else if (counter > 0 && ( std::strncmp( fileDate_prev, dateTime.c_str(), dateTime.length()) < 0 ) &&
+        ( std::strncmp( fileDate, dateTime.c_str(), dateTime.length()) > 0 ) ) {
+        found = true;
+        *p = startOfLine;
+        break;          
+        }
+
+      localPointer = startOfLine + 1;
+      std::strcpy(fileDate_prev, fileDate);
+      std::strcpy(ftimestamp_prev, ftimestamp);
+    }
+  }
+      
+    if (_verbosity > 2)   
+      std::cout << "LINE -> file: " << fileDate  << " Req: "  << dateTime << " Chunksize: " << chunkSize << " Position: " << position << std:: endl;
+    return found;
 }
 
 // -------------------------------------------------------------
-
 
 bool bwFile::processFile(std::string& fileName, const std::string& ini, const std::string& fin) {
 
   std::vector<uintmax_t> vec; 
   uintmax_t m_numLines = 0;
-  //auto mf =  mmap(fileName.c_str(), );
-
-
-  try {
-      this->mappedFile.open(fileName.c_str(), boost::iostreams::mapped_file::readonly);
-      }
-  catch( const std::exception& e ) {
-    std::cout << "\n ERRPR: Unable to open the file: " << fileName.c_str() << '\n' ;
-    std::cerr << e.what() << '\n' ;
-    exit(1);
-    }
-
-
-  this->mappedFilePtr = const_cast<char *> (this->mappedFile.const_data());
-  auto l = this->mappedFilePtr + this->mappedFile.size();
 
   this->fileName = fileName;
   this->ini = ini;
@@ -120,6 +189,18 @@ bool bwFile::processFile(std::string& fileName, const std::string& ini, const st
       return false;
   }
 
+  try {
+      this->mappedFile.open(fileName.c_str(), boost::iostreams::mapped_file::readonly);
+      }
+  catch( const std::exception& e ) {
+    std::cout << "\n ERRPR: Unable to open the file: " << fileName.c_str() << '\n' ;
+    std::cerr << e.what() << '\n' ;
+    exit(1);
+    }
+
+  this->mappedFilePtr = const_cast<char *> (this->mappedFile.const_data());
+  this->totalLen = this->mappedFile.size();
+  this->finalPointer = const_cast<char *>  (this->mappedFilePtr + this->mappedFile.size());
 
   if ( ! this->setLimits() ) {
     std::cout << "ERROR Setting limits! ABORT" << std::endl;
@@ -133,9 +214,13 @@ bool bwFile::processFile(std::string& fileName, const std::string& ini, const st
   long long int fdate=0, ftimestamp=0;
   long int      counter=0;
 
+  if (_verbosity > 2)   
+    std::cout << "File: "   << fileName << "   Total Length: " << this->mappedFile.size() << std::endl;
+
   // the following line is a bit tricky, excluding fields and decimals to avoid float and double formats...
   std::sscanf(this->mappedFilePtr, "%lli.%*d,%lli.%*d,%*d,%*d,%lli.%*d,%lli.%*d", &ftimestamp, &fdate, &fuploadBW, &fdownloadBW);
-  std::cout << "First line datetime: " << fdate << " timestamp: " << ftimestamp << "  up: " << fuploadBW << " down: " << fdownloadBW << std:: endl;
+  if (_verbosity > 2)   
+    std::cout << "First line datetime: " << fdate << " timestamp: " << ftimestamp << "  up: " << fuploadBW << " down: " << fdownloadBW << std:: endl;
   this->fileIniTimeT = ftimestamp;
   this->fileIniDateTime = fdate;
 
@@ -145,7 +230,8 @@ bool bwFile::processFile(std::string& fileName, const std::string& ini, const st
     auto ptr = this->mappedFilePtr;
     if (ptr = static_cast<char*>(memrchr(ptr, '\n',  this->mappedFile.size()-2))) {
       std::sscanf(ptr+1, "%lli.%*d,%lli.%*d,%*d,%*d,%lli.%*d,%lli.%*d", &ftimestamp, &fdate, &fuploadBW, &fdownloadBW);
-      std::cout << "Last line datetime: " << fdate << " timestamp: " << ftimestamp << "  up: " << fuploadBW << " down: " << fdownloadBW << std:: endl;
+      if (_verbosity > 2)   
+        std::cout << "Last line datetime: " << fdate << " timestamp: " << ftimestamp << "  up: " << fuploadBW << " down: " << fdownloadBW << std:: endl;
       this->fileFinTimeT = ftimestamp;
       this->fileFinDateTime = fdate;
       }
@@ -180,12 +266,13 @@ bool bwFile::processFile(std::string& fileName, const std::string& ini, const st
     std::cout << "\n WARNING: End time (" << this->finTimeT << ") exceeds file end time (" << this->fileFinTimeT <<"). .... " << '\n' ;
   }
 
+  /*   not required, but intersting!
   // fill a vector of start lines positions in array. (after carriage return)
   auto localMapPtr = this->mappedFilePtr;
   auto orig = this->mappedFilePtr;
 	vec.push_back(localMapPtr-localMapPtr);
-    while (localMapPtr && localMapPtr!=l) {
-        if ((localMapPtr = static_cast< char*>(memchr(localMapPtr, '\n', l-localMapPtr))))
+    while (localMapPtr && localMapPtr < this->finalPointer) {
+        if ((localMapPtr = static_cast< char*>(memchr(localMapPtr, '\n', finalPointer-localMapPtr))))
             {
       			m_numLines++, localMapPtr++;
 			      vec.push_back(localMapPtr - orig);
@@ -203,9 +290,23 @@ bool bwFile::processFile(std::string& fileName, const std::string& ini, const st
     std::cout << "vec[2]: " << vec[2] << "\n";
     std::cout << "vec[20]: " << vec[20] << "\n";    
     std::cout << "vec[max-1]: " << vec[vec.size() - 1] << "("  << vec.size() - 1 << ")" << "\n";
+    */  // end of not requred block...
 
 
+    meassureExecTime(timeMeassureStart);
 
+    // everything OK, find first point
+    if (findDate(ini, &(this->iniPoint))) {
+
+      if (findDate(fin, &(this->finPoint))) {
+
+      //std::cout << this->iniPoint;
+
+
+      meassureExecTime(timeMeassureStop);
+
+      }
+    }  
 
 
 
@@ -219,9 +320,7 @@ bool bwFile::processFile(std::string& fileName, const std::string& ini, const st
 // basic argument parser for the program
 
 int process_program_options(const int argc, const char *const argv[],std::vector<std::string>& fileName, std::string& ini, std::string& fin)
-{
-  
-  
+{ 
   namespace po = boost::program_options; 
 
   auto now = std::chrono::system_clock::now();
@@ -230,11 +329,13 @@ int process_program_options(const int argc, const char *const argv[],std::vector
 
   std::stringstream finTime;
   finTime << std::put_time(std::localtime(&in_time_t_fin), "%Y%m%d");
-  std::cout <<  finTime.str() << std::endl;
+  if (_verbosity > 2)   
+    std::cout <<  finTime.str() << std::endl;
 
   std::stringstream iniTime;
   iniTime << std::put_time(std::localtime(&in_time_t_ini), "%Y%m%d");
-  std::cout <<  iniTime.str()<< std::endl;
+  if (_verbosity > 2)   
+    std::cout <<  iniTime.str()<< std::endl;
 
   printVersions();
   
@@ -247,6 +348,7 @@ int process_program_options(const int argc, const char *const argv[],std::vector
         ("age", po::value<int>()->notifier(on_age), "Age")
         ("ini,I", po::value<std::string>(&ini)->default_value(iniTime.str()) , "Start date time. e.g.:  20181201 is equvalent to December the 1st, 00:00 ")
         ("fin,F", po::value<std::string> (&fin)->default_value(finTime.str()), "End date time. e.g.:  201812012300 is equvalent to December the 1st, 11:00 PM")
+        ("verbose,v", po::value<std::uint16_t> (&_verbosity)->default_value(0), "Print more verbose messages at each additional verbosity level.")
         ("filename,f", po::value< std::vector<std::string> > (&fileName), "filename, can specify many!");
         
       variables_map vm;
@@ -268,8 +370,6 @@ int process_program_options(const int argc, const char *const argv[],std::vector
         std::cout << "\n filename IS REQUIRED! " <<  '\n';
         exit(1); 
       }
-
-
     }
   catch (const error &ex) 
     {
