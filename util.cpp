@@ -4,8 +4,8 @@
 
 #include "util.hpp"
 
-
 // -------------------------------------------------------------
+// Stupid function / procedure
 
 void on_age(int age)
 { 
@@ -41,12 +41,12 @@ bool  myStrToTime(const std::string& timeStr, std::time_t& t )  {
   int year=0, month=1, day=1, hour=0, min=0;
   struct tm stm;
 
+  std::sscanf(timeStr.c_str(), "%04d%02d%02d%02d%02d", &year, &month, &day, &hour, &min);
+
   if (year < 0 || month < 1 || month > 12 || day < 1 || day > 31 || hour < 0 || hour > 23 || min < 0 || min > 59) {
     std::cout << "ERROR: bad date-time format: " << timeStr << std::endl;
     return false;
   }
-
-  std::sscanf(timeStr.c_str(), "%04d%02d%02d%02d%02d", &year, &month, &day, &hour, &min);
 
   stm.tm_year = year - 1900;
   stm.tm_mon = month - 1;
@@ -57,7 +57,6 @@ bool  myStrToTime(const std::string& timeStr, std::time_t& t )  {
   stm.tm_isdst = -1;
 
  t = mktime(&stm);
- //std::cout << "String : " << timeStr << " Converted to time_t: " << t << std::endl;
  return true;
 }
 
@@ -86,6 +85,8 @@ unsigned long long int meassureExecTime(exec_time t) {
 
 // -------------------------------------------------------------
 
+// print C++ version according to compiler...  just to check features
+
 void printVersions() {
 
     std::cout << "C++ Version:  " ;
@@ -100,6 +101,8 @@ void printVersions() {
 }
 
 // -------------------------------------------------------------
+
+// find character backwards in string, returns pointer to  next char
 
 void *mymemrchr(const void *s, int c, size_t n)
 {
