@@ -25,17 +25,17 @@ std::uint16_t  _verbosity = 0U;
 class minuteSample{
 
   public:
-    minuteSample()  { t=0 ; minute=""; upload=download=0; meassured=false; }
+    minuteSample()  { t=0 ; minute=""; upload=download=0; measured=false; }
     time_t getT() { return t; }
     void setT(time_t t) { this->t = t; }
     void setMinute(std::string minute) { this->minute = minute; }
     std::string getMinute() { return this->minute; }
     long long int getUpload() { return this->upload; }
     long long int getDownload() { return this->download; }
-    bool isMessured() { return this->meassured; }
+    bool isMessured() { return this->measured; }
 
     void setValues(time_t t, std::string minute, long long int upload, long long int download) {
-      this->t = t; this->meassured = true; this->minute = minute; if (upload > this->upload) this->upload = upload; if (download > this->download) this->download = download;
+      this->t = t; this->measured = true; this->minute = minute; if (upload > this->upload) this->upload = upload; if (download > this->download) this->download = download;
       }
 
     void print() {
@@ -46,7 +46,7 @@ class minuteSample{
     time_t         t;
     std::string    minute;
     long long int  upload, download; 
-    bool           meassured;
+    bool           measured;
   };
 
 // -------------------------------------------------------------
@@ -94,17 +94,17 @@ class bwSample{
     bool calculateAvailability(float threshold, long int &measuredMinutes, long int &availableMinutes, float &measurePercentage, float &availabilityPercentage, float &maxPossibleAvailabilityPercentage)  {
       measuredMinutes = availableMinutes = 0;
       for (auto & i: minutesVector)  {
-        if ( i.isMessured()) {     // there is a meassurment fo rthis minute
+        if ( i.isMessured()) {     // there is a measurment fo rthis minute
           measuredMinutes++;
-          if ( i.getDownload() >= threshold || i.getUpload() >= threshold ) // meassured and with traffic
+          if ( i.getDownload() >= threshold || i.getUpload() >= threshold ) // measured and with traffic
             availableMinutes++;
         }
       }  
 
-      measurePercentage = (100.0 * measuredMinutes) / this->totalMinutes;
-      availabilityPercentage = (100 * availableMinutes) / this->totalMinutes;
-      // following formula is: minutes with verified availability  + non meassured minutes
-      // (we consider all non meassured minutes as 'available' [with traffic])
+      measurePercentage = (100.0 * (float)measuredMinutes) / this->totalMinutes;
+      availabilityPercentage = (100 * (float)availableMinutes) / this->totalMinutes;
+      // following formula is: minutes with verified availability  + non measured minutes
+      // (we consider all non measured minutes as 'available' [with traffic])
       // just as a reference!
       maxPossibleAvailabilityPercentage = (100 * (float)(availableMinutes + (this->totalMinutes - measuredMinutes))) / this->totalMinutes;
       
@@ -433,7 +433,7 @@ bool bwFile::processFile(std::string& fileName, const std::string& ini, const st
     std::cout << "\n WARNING: End time (" << this->finTimeT << ") exceeds file end time (" << this->fileFinTimeT <<"). .... " << '\n' ;
   }
 
-    meassureExecTime(timeMeassureStart);
+    measureExecTime(timeMeasureStart);
 
 
 
@@ -477,7 +477,7 @@ bool bwFile::processFile(std::string& fileName, const std::string& ini, const st
       }
     }  
 
-    meassureExecTime(timeMeassureStop);
+    measureExecTime(timeMeasureStop);
 
 
   return true;

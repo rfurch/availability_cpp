@@ -63,15 +63,15 @@ bool  myStrToTime(const std::string& timeStr, std::time_t& t )  {
 // -------------------------------------------------------------
 
 // measure time between two consecutive calls:
-// meassureExecTime(ini);
+// measureExecTime(ini);
 // code....
-// ret = meassureExecTime(fin);
+// ret = measureExecTime(fin);
 
-unsigned long long int meassureExecTime(exec_time t) {
+unsigned long long int measureExecTime(exec_time t) {
 
   static auto t1 = std::chrono::high_resolution_clock::now();
 
-  if (t == timeMeassureStart) {
+  if (t == timeMeasureStart) {
     t1 = std::chrono::high_resolution_clock::now();
     return 0;
   }
